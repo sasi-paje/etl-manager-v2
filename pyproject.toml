@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "etl-manager"
+version = "1.0.0"
+description = "Docker-style ETL process manager for argus→webapp database sync"
+requires-python = ">=3.11"
+dependencies = [
+    "pymysql>=1.1",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+etl-manager = "etl_manager.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["etl_manager*"]
