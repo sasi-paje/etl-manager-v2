@@ -5,9 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "etl-manager"
 version = "1.0.0"
-description = "Docker-style ETL process manager for argus→webapp database sync"
+description = "Docker-style ETL process manager for MySQL to Supabase PostgreSQL sync"
 requires-python = ">=3.11"
 dependencies = [
+    "psycopg[binary]>=3.2",
     "pymysql>=1.1",
     "python-dotenv>=1.0",
 ]

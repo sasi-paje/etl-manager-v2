@@ -120,7 +120,7 @@ def cmd_add(args) -> None:
     upsert_etl(etl)
     print(colored(f"{SYMBOL_OK} ETL '{argus_id}' added (interval: {args.interval}min).", GREEN))
     print(f"  Source DB : argus_{argus_id}  @ {source_db or '(SOURCE_DB_HOST env)'}")
-    print(f"  Target DB : webapp_{argus_id} @ {target_db or '(TARGET_DB_HOST env)'}")
+    print(f"  Target PG : {os.environ.get('TARGET_DB_SCHEMA', 'public') or 'public'} schema @ {target_db or '(TARGET_DB_HOST env)'}")
 
 
 def cmd_ps(args) -> None:
@@ -277,7 +277,7 @@ def cmd_daemon_status(args) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="etl-manager",
-        description="Docker-style ETL process manager",
+        description="Docker-style ETL process manager for MySQL source to Supabase PostgreSQL target",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -299,7 +299,7 @@ Examples:
     p_add.add_argument("argus_id", help="e.g. 110760000549 or argus_110760000549")
     p_add.add_argument("--interval", type=int, default=60, help="Interval in minutes (default: 60)")
     p_add.add_argument("--source-host", help="Source DB host (overrides env var)")
-    p_add.add_argument("--target-host", help="Target DB host (overrides env var)")
+    p_add.add_argument("--target-host", help="Supabase PostgreSQL target host (overrides TARGET_DB_HOST)")
     p_add.add_argument("--force", action="store_true", help="Overwrite existing ETL")
 
     sub.add_parser("ps", help="List all ETLs and their status")

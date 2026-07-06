@@ -1,10 +1,10 @@
 # ETL Manager
 
-Gerenciador de processos ETL estilo Docker para sincronização de dados entre bancos de dados `argus_*` → `webapp_*`.
+Gerenciador de processos ETL estilo Docker para sincronização de dados de bancos MySQL/MariaDB `argus_*` para Supabase PostgreSQL.
 
 ## Visão Geral
 
-O ETL Manager é uma ferramenta que automatiza a sincronização de tabelas entre bancos de dados MySQL/MariaDB. Ele funciona como um daemon que executa sincronizações em intervalos configuráveis.
+O ETL Manager é uma ferramenta que automatiza a sincronização de tabelas de uma origem MySQL/MariaDB para um destino Supabase PostgreSQL. Ele funciona como um daemon que executa sincronizações em intervalos configuráveis.
 
 ### Tabelas Sincronizadas
 
@@ -24,10 +24,11 @@ O processo sincroniza as seguintes tabelas:
 ## Pré-requisitos
 
 - Python 3.11 ou superior
-- MySQL ou MariaDB
-- Acesso a dois bancos de dados MySQL:
+- MySQL ou MariaDB para a origem
+- Banco PostgreSQL no Supabase para o destino
+- Acesso aos dois bancos:
   - **Source (origem)**: Banco com prefixo `argus_*`
-  - **Target (destino)**: Banco com prefixo `webapp_*`
+  - **Target (destino)**: Banco Supabase PostgreSQL existente, com schema configurável
 
 ---
 
@@ -71,7 +72,7 @@ cp .env.example .env
 
 ### 2. Edite o arquivo `.env` com suas credenciais
 
-Edite o arquivo `.env` e preencha com os dados dos seus bancos:
+Edite o arquivo `.env` e preencha com os dados da origem MySQL/MariaDB e do destino Supabase PostgreSQL:
 
 ```env
 # Banco de dados de ORIGEM (argus)
@@ -79,10 +80,14 @@ SOURCE_DB_HOST=seu-host-argus.amazonaws.com
 SOURCE_DB_USER=seu_usuario
 SOURCE_DB_PASSWORD=sua_senha
 
-# Banco de dados de DESTINO (webapp)
-TARGET_DB_HOST=seu-host-webapp.amazonaws.com
-TARGET_DB_USER=seu_usuario
-TARGET_DB_PASSWORD=sua_senha
+# Banco de dados de DESTINO (Supabase PostgreSQL)
+TARGET_DB_HOST=db.seu-projeto.supabase.co
+TARGET_DB_PORT=5432
+TARGET_DB_NAME=postgres
+TARGET_DB_USER=postgres
+TARGET_DB_PASSWORD=sua_senha_supabase
+TARGET_DB_SCHEMA=public
+TARGET_DB_SSLMODE=require
 ```
 
 ### Alternativa: Variáveis de Ambiente
@@ -94,9 +99,13 @@ Você também pode definir as variáveis diretamente no terminal:
 export SOURCE_DB_HOST="seu-host-argus.amazonaws.com"
 export SOURCE_DB_USER="seu_usuario"
 export SOURCE_DB_PASSWORD="sua_senha"
-export TARGET_DB_HOST="seu-host-webapp.amazonaws.com"
-export TARGET_DB_USER="seu_usuario"
-export TARGET_DB_PASSWORD="sua_senha"
+export TARGET_DB_HOST="db.seu-projeto.supabase.co"
+export TARGET_DB_PORT="5432"
+export TARGET_DB_NAME="postgres"
+export TARGET_DB_USER="postgres"
+export TARGET_DB_PASSWORD="sua_senha_supabase"
+export TARGET_DB_SCHEMA="public"
+export TARGET_DB_SSLMODE="require"
 ```
 
 **Windows (PowerShell):**
@@ -104,9 +113,13 @@ export TARGET_DB_PASSWORD="sua_senha"
 $env:SOURCE_DB_HOST="seu-host-argus.amazonaws.com"
 $env:SOURCE_DB_USER="seu_usuario"
 $env:SOURCE_DB_PASSWORD="sua_senha"
-$env:TARGET_DB_HOST="seu-host-webapp.amazonaws.com"
-$env:TARGET_DB_USER="seu_usuario"
-$env:TARGET_DB_PASSWORD="sua_senha"
+$env:TARGET_DB_HOST="db.seu-projeto.supabase.co"
+$env:TARGET_DB_PORT="5432"
+$env:TARGET_DB_NAME="postgres"
+$env:TARGET_DB_USER="postgres"
+$env:TARGET_DB_PASSWORD="sua_senha_supabase"
+$env:TARGET_DB_SCHEMA="public"
+$env:TARGET_DB_SSLMODE="require"
 ```
 
 ---
@@ -141,7 +154,7 @@ Parâmetros:
 - `argus_id`: ID do processo Argus (pode usar com ou sem prefixo `argus_`)
 - `--interval`: Intervalo de execução em minutos (padrão: 60)
 - `--source-host`: Sobrescreve SOURCE_DB_HOST para este ETL específico
-- `--target-host`: Sobrescreve TARGET_DB_HOST para este ETL específico
+- `--target-host`: Sobrescreve TARGET_DB_HOST do Supabase PostgreSQL para este ETL específico
 - `--force`: Sobrescreve se já existir
 
 ---
@@ -274,6 +287,28 @@ etl-manager daemon status
 
 ---
 
+## Validação com Supabase de Teste
+
+Antes de iniciar o daemon em produção, valide um ETL em foreground contra um banco Supabase não produtivo:
+
+```bash
+# 1. Configure .env com SOURCE_DB_* e TARGET_DB_* de teste
+nano .env
+
+# 2. Registre ou atualize um ETL
+etl-manager add 110760000088 --interval 60 --force
+
+# 3. Execute uma sincronização manual
+etl-manager run 110760000088
+
+# 4. Verifique logs e tabelas no schema configurado
+etl-manager logs 110760000088 --tail 100
+```
+
+Confirme no Supabase que as tabelas foram criadas no schema `TARGET_DB_SCHEMA` e que os registros esperados foram inseridos antes de iniciar `etl-manager daemon start`.
+
+---
+
 ## Estrutura de Arquivos
 
 ```
@@ -297,9 +332,9 @@ etl-manager/
 
 ## Solução de Problemas
 
-### "Can't connect to MySQL server on 'localhost'"
+### Erro de conexão com banco de dados
 
-Este erro indica que as variáveis de ambiente não foram configuradas corretamente. Verifique:
+Erros como "Can't connect to MySQL server" ou falhas de conexão PostgreSQL indicam que as variáveis de ambiente não foram configuradas corretamente. Verifique:
 
 1. O arquivo `.env` existe e está preenchido
 2. As variáveis estão exportadas no terminal atual
@@ -315,9 +350,9 @@ etl-manager logs --all
 etl-manager daemon status
 ```
 
-### Verificar banco de dados
+### Verificar banco de origem MySQL
 
-Para testar a conexão manualmente:
+Para testar a conexão da origem manualmente:
 
 ```python
 import pymysql
@@ -327,6 +362,25 @@ conn = pymysql.connect(
     user="seu-usuario",
     password="sua-senha",
     database="argus_110760000088"
+)
+print("Conexão OK!")
+conn.close()
+```
+
+### Verificar banco de destino Supabase PostgreSQL
+
+Para testar a conexão do destino manualmente:
+
+```python
+import psycopg
+
+conn = psycopg.connect(
+    host="db.seu-projeto.supabase.co",
+    port=5432,
+    dbname="postgres",
+    user="postgres",
+    password="sua_senha_supabase",
+    sslmode="require",
 )
 print("Conexão OK!")
 conn.close()

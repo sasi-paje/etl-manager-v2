@@ -33,29 +33,47 @@ _last_run: dict[str, float] = {}
 _running = True
 
 
+class MissingDatabaseConfigError(RuntimeError):
+    pass
+
+
 def handle_shutdown(signum, frame):
     global _running
     logger.info("Daemon shutting down (signal %s)...", signum)
     _running = False
 
 
+def _required_env(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise MissingDatabaseConfigError(f"Missing required environment variable: {name}")
+    return value
+
+
 def build_db_configs(etl) -> tuple[dict, dict]:
     source_host = (etl.source_db or os.environ.get("SOURCE_DB_HOST", "")).strip()
     target_host = (etl.target_db or os.environ.get("TARGET_DB_HOST", "")).strip()
+    if not source_host:
+        raise MissingDatabaseConfigError("Missing required source database host: SOURCE_DB_HOST")
+    if not target_host:
+        raise MissingDatabaseConfigError("Missing required target database host: TARGET_DB_HOST")
+
     source_db = f"argus_{etl.argus_id}"
-    target_db = f"webapp_{etl.argus_id}"
 
     source_config = {
         "host": source_host,
-        "user": os.environ["SOURCE_DB_USER"],
-        "password": os.environ["SOURCE_DB_PASSWORD"],
+        "user": _required_env("SOURCE_DB_USER"),
+        "password": _required_env("SOURCE_DB_PASSWORD"),
         "db": source_db,
     }
     target_config = {
         "host": target_host,
-        "user": os.environ["TARGET_DB_USER"],
-        "password": os.environ["TARGET_DB_PASSWORD"],
-        "db": target_db,
+        "port": int(os.environ.get("TARGET_DB_PORT", "5432")),
+        "dbname": _required_env("TARGET_DB_NAME"),
+        "user": _required_env("TARGET_DB_USER"),
+        "password": _required_env("TARGET_DB_PASSWORD"),
+        "schema": os.environ.get("TARGET_DB_SCHEMA", "public").strip() or "public",
+        "sslmode": os.environ.get("TARGET_DB_SSLMODE", "require").strip() or "require",
     }
     return source_config, target_config
 
