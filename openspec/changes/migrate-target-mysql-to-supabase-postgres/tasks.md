@@ -32,4 +32,4 @@
 - [x] 5.2 Add or update unit tests for SQL rendering of reserved and mixed-case identifiers.
 - [x] 5.3 Add or update tests for PostgreSQL table preparation behavior using a mocked target connection.
 - [x] 5.4 Run the test suite or the closest available validation command.
-- [x] 5.5 Perform a foreground dry validation or documented manual run plan for `etl-manager run <argus_id>` against a non-production Supabase database.
+- [x] 5.5 Perform a foreground dry validation or documented manual run plan for `etl-manager-v2 run <argus_id>` against a non-production Supabase database.

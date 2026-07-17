@@ -1,17 +1,17 @@
 """
-ETL Manager CLI — Docker-style interface for managing ETL processes.
+ETL Manager V2 CLI — Docker-style interface for managing ETL processes.
 
 Usage:
-    etl-manager add argus_110760000549 --interval 60
-    etl-manager ps
-    etl-manager logs argus_110760000549
-    etl-manager restart argus_110760000549
-    etl-manager stop argus_110760000549
-    etl-manager rm argus_110760000549
-    etl-manager daemon start
-    etl-manager daemon stop
-    etl-manager daemon status
-    etl-manager run argus_110760000549   # run once immediately
+    etl-manager-v2 add argus_110760000549 --interval 60
+    etl-manager-v2 ps
+    etl-manager-v2 logs argus_110760000549
+    etl-manager-v2 restart argus_110760000549
+    etl-manager-v2 stop argus_110760000549
+    etl-manager-v2 rm argus_110760000549
+    etl-manager-v2 daemon start
+    etl-manager-v2 daemon stop
+    etl-manager-v2 daemon status
+    etl-manager-v2 run argus_110760000549   # run once immediately
 """
 
 import os
@@ -147,7 +147,7 @@ def cmd_add(args) -> None:
 def cmd_ps(args) -> None:
     state = load_state()
     if not state:
-        print("No ETLs registered. Use: etl-manager add <argus_id>")
+        print("No ETLs registered. Use: etl-manager-v2 add <argus_id>")
         return
 
     header = f"{'ARGUS ID':<20} {'STATUS':<20} {'INTERVAL':>10} {'LAST RUN':<15} {'LAST STATUS':<12}"
@@ -313,21 +313,21 @@ def cmd_daemon_status(args) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="etl-manager",
+        prog="etl-manager-v2",
         description="Docker-style ETL process manager",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  etl-manager daemon start
-  etl-manager add 110760000549 --interval 60
-  etl-manager ps
-  etl-manager logs 110760000549 --tail 50
-  etl-manager restart 110760000549
-  etl-manager stop 110760000549
-  etl-manager interval 110760000549 30
-  etl-manager run 110760000549
-  etl-manager rm 110760000549
-  etl-manager daemon stop
+  etl-manager-v2 daemon start
+  etl-manager-v2 add 110760000549 --interval 60
+  etl-manager-v2 ps
+  etl-manager-v2 logs 110760000549 --tail 50
+  etl-manager-v2 restart 110760000549
+  etl-manager-v2 stop 110760000549
+  etl-manager-v2 interval 110760000549 30
+  etl-manager-v2 run 110760000549
+  etl-manager-v2 rm 110760000549
+  etl-manager-v2 daemon stop
 """,
     )
     sub = parser.add_subparsers(dest="command", required=True)

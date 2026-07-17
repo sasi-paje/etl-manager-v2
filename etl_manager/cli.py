@@ -1,6 +1,7 @@
-"""ETL Manager CLI package entrypoint."""
+"""ETL Manager V2 CLI package entrypoint."""
 
 import argparse
+import ctypes
 import json
 import os
 import platform
@@ -8,7 +9,7 @@ import signal
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -16,8 +17,10 @@ from dotenv import load_dotenv
 from etl_manager.state import ETLState, get_etl, load_state, remove_etl, update_etl_fields, upsert_etl
 
 DAEMON_PID_FILE = Path(__file__).resolve().parent.parent / "daemon.pid"
+DAEMON_LOCK_FILE = Path(__file__).resolve().parent.parent / "daemon.lock"
 LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
 ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+DAEMON_STALE_AFTER_MINUTES = 90
 
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
@@ -57,19 +60,33 @@ def _get_daemon_pid() -> int | None:
         return None
 
 
+def _daemon_heartbeat_is_stale() -> bool:
+    if not DAEMON_LOCK_FILE.exists():
+        return False
+    stale_after = timedelta(minutes=int(os.environ.get("DAEMON_STALE_AFTER_MINUTES", DAEMON_STALE_AFTER_MINUTES)))
+    lock_age = datetime.now() - datetime.fromtimestamp(DAEMON_LOCK_FILE.stat().st_mtime)
+    return lock_age > stale_after
+
+
 def _is_daemon_running() -> bool:
     pid = _get_daemon_pid()
     if pid is None:
+        if _daemon_heartbeat_is_stale():
+            DAEMON_LOCK_FILE.unlink(missing_ok=True)
+        return False
+    if _daemon_heartbeat_is_stale():
+        DAEMON_PID_FILE.unlink(missing_ok=True)
+        DAEMON_LOCK_FILE.unlink(missing_ok=True)
         return False
     if platform.system() == "Windows":
-        result = subprocess.run(
-            ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        output = result.stdout.strip()
-        is_running = bool(output) and "No tasks are running" not in output
+        process_query_limited_information = 0x1000
+        handle = ctypes.windll.kernel32.OpenProcess(process_query_limited_information, False, pid)
+        if handle:
+            ctypes.windll.kernel32.CloseHandle(handle)
+            return True
+
+        error_code = ctypes.windll.kernel32.GetLastError()
+        is_running = error_code == 5
         if not is_running:
             DAEMON_PID_FILE.unlink(missing_ok=True)
         return is_running
@@ -126,7 +143,7 @@ def cmd_add(args) -> None:
 def cmd_ps(args) -> None:
     state = load_state()
     if not state:
-        print("No ETLs registered. Use: etl-manager add <argus_id>")
+        print("No ETLs registered. Use: etl-manager-v2 add <argus_id>")
         return
 
     header = f"{'ARGUS ID':<20} {'STATUS':<20} {'INTERVAL':>10} {'LAST RUN':<15} {'LAST STATUS':<12}"
@@ -276,21 +293,21 @@ def cmd_daemon_status(args) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="etl-manager",
+        prog="etl-manager-v2",
         description="Docker-style ETL process manager for MySQL source to Supabase PostgreSQL target",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  etl-manager daemon start
-  etl-manager add 110760000549 --interval 60
-  etl-manager ps
-  etl-manager logs 110760000549 --tail 50
-  etl-manager restart 110760000549
-  etl-manager stop 110760000549
-  etl-manager interval 110760000549 30
-  etl-manager run 110760000549
-  etl-manager rm 110760000549
-  etl-manager daemon stop
+  etl-manager-v2 daemon start
+  etl-manager-v2 add 110760000549 --interval 60
+  etl-manager-v2 ps
+  etl-manager-v2 logs 110760000549 --tail 50
+  etl-manager-v2 restart 110760000549
+  etl-manager-v2 stop 110760000549
+  etl-manager-v2 interval 110760000549 30
+  etl-manager-v2 run 110760000549
+  etl-manager-v2 rm 110760000549
+  etl-manager-v2 daemon stop
 """,
     )
     sub = parser.add_subparsers(dest="command", required=True)

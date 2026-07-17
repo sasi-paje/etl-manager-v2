@@ -1,4 +1,7 @@
+import sys
+import types
 import unittest
+from unittest.mock import patch
 
 from etl_manager.runner import ETLRunner, TABLE_SPECS
 
@@ -7,6 +10,7 @@ class FakeCursor:
     def __init__(self, fetchone_result=None, fetchall_result=None):
         self.fetchone_result = fetchone_result
         self.fetchall_result = fetchall_result or []
+        self.fetchall_results = None
         self.executed = []
 
     def execute(self, sql, params=None):
@@ -19,6 +23,8 @@ class FakeCursor:
         return self.fetchone_result
 
     def fetchall(self):
+        if self.fetchall_results is not None:
+            return self.fetchall_results.pop(0) if self.fetchall_results else []
         return self.fetchall_result
 
     def __enter__(self):
@@ -39,6 +45,17 @@ class FakeConnection:
     def commit(self):
         self.commits += 1
 
+    def close(self):
+        pass
+
+
+class CloseTrackingConnection:
+    def __init__(self):
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
 
 class RunnerSqlTest(unittest.TestCase):
     def make_runner(self):
@@ -48,17 +65,21 @@ class RunnerSqlTest(unittest.TestCase):
             {"host": "pg", "user": "u", "password": "p", "dbname": "postgres", "schema": "public"},
         )
 
-    def test_incremental_sync_renders_mysql_source_and_postgres_target_sql(self):
+    def test_incremental_sync_only_reads_rows_after_target_max_id(self):
         runner = self.make_runner()
         src = FakeCursor(fetchall_result=[(2, False, "name", "nice", None, None, "mode", "desc")])
+        src.fetchall_results = [[(2, False, "name", "nice", None, None, "mode", "desc")], []]
         tgt = FakeCursor(fetchone_result=(1,))
 
-        runner._sync_by_max_id(src, tgt, "argus_110760000549", TABLE_SPECS["flow"])
+        runner._sync_upsert_by_id(src, tgt, "argus_110760000549", TABLE_SPECS["flow"])
 
-        self.assertIn('SELECT MAX("id") FROM "public"."flow"', tgt.executed[0][0])
         self.assertIn("`default`", src.executed[0][0])
         self.assertIn("`argus_110760000549`.`flow`", src.executed[0][0])
-        self.assertIn('"default"', tgt.executed[1][0])
+        self.assertIn("ORDER BY `id` LIMIT %s", src.executed[0][0])
+        self.assertEqual(src.executed[0][1], (1, 1000))
+        self.assertIn('SELECT COALESCE(MAX("id"), 0) FROM "public"."flow"', tgt.executed[0][0])
+        self.assertIn('ON CONFLICT ("id") DO UPDATE SET', tgt.executed[1][0])
+        self.assertIn('"default" = EXCLUDED."default"', tgt.executed[1][0])
         self.assertIn('"createdAt"', tgt.executed[1][0])
 
     def test_truncate_reload_uses_postgres_schema_qualified_table(self):
@@ -143,6 +164,35 @@ class RunnerSqlTest(unittest.TestCase):
 
         self.assertIs(normalized[6], True)
         self.assertIs(normalized[7], False)
+
+    def test_connect_disables_psycopg_prepared_statements_for_pooler(self):
+        runner = self.make_runner()
+        source_conn = CloseTrackingConnection()
+        target_conn = FakeConnection(FakeCursor(fetchone_result=None))
+        connect_kwargs = {}
+
+        def connect(**kwargs):
+            connect_kwargs.update(kwargs)
+            return target_conn
+
+        psycopg_module = types.SimpleNamespace(connect=connect)
+
+        with patch.dict(sys.modules, {"psycopg": psycopg_module}), patch("etl_manager.runner.pymysql.connect", return_value=source_conn):
+            runner.connect()
+
+        self.assertIs(runner.target_conn, target_conn)
+        self.assertIsNone(connect_kwargs["prepare_threshold"])
+
+    def test_run_closes_source_connection_when_target_connect_fails(self):
+        runner = self.make_runner()
+        source_conn = CloseTrackingConnection()
+        psycopg_module = types.SimpleNamespace(connect=lambda **kwargs: (_ for _ in ()).throw(RuntimeError("target down")))
+
+        with patch.dict(sys.modules, {"psycopg": psycopg_module}), patch("etl_manager.runner.pymysql.connect", return_value=source_conn):
+            with self.assertRaisesRegex(RuntimeError, "target down"):
+                runner.run()
+
+        self.assertTrue(source_conn.closed)
 
 
 if __name__ == "__main__":

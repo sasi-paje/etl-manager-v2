@@ -14,10 +14,10 @@ cp .env.example .env        # fill in DB credentials
 ## Running
 
 ```bash
-etl-manager --help                          # verify installation
-etl-manager daemon start                    # start background daemon
-etl-manager ps                              # list all ETLs and status
-etl-manager logs <argus_id> --tail 100     # tail logs for a specific ETL
+etl-manager-v2 --help                          # verify installation
+etl-manager-v2 daemon start                    # start background daemon
+etl-manager-v2 ps                              # list all ETLs and status
+etl-manager-v2 logs <argus_id> --tail 100     # tail logs for a specific ETL
 python -m etl_manager.daemon               # run daemon in foreground (useful for debugging)
 ```
 
@@ -53,4 +53,4 @@ All DB credentials are read from `.env` (loaded via `python-dotenv`) or from the
 | `TARGET_DB_HOST` | Host for `webapp_*` databases |
 | `TARGET_DB_USER` / `TARGET_DB_PASSWORD` | Target credentials |
 
-Per-ETL host overrides can be set with `etl-manager add --source-host / --target-host`, stored in `ETLState.source_db` / `target_db`.
+Per-ETL host overrides can be set with `etl-manager-v2 add --source-host / --target-host`, stored in `ETLState.source_db` / `target_db`.

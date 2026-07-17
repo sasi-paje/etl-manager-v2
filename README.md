@@ -1,10 +1,10 @@
-# ETL Manager
+# ETL Manager V2
 
 Gerenciador de processos ETL estilo Docker para sincronização de dados de bancos MySQL/MariaDB `argus_*` para Supabase PostgreSQL.
 
 ## Visão Geral
 
-O ETL Manager é uma ferramenta que automatiza a sincronização de tabelas de uma origem MySQL/MariaDB para um destino Supabase PostgreSQL. Ele funciona como um daemon que executa sincronizações em intervalos configuráveis.
+O ETL Manager V2 é uma ferramenta que automatiza a sincronização de tabelas de uma origem MySQL/MariaDB para um destino Supabase PostgreSQL. Ele funciona como um daemon que executa sincronizações em intervalos configuráveis.
 
 ### Tabelas Sincronizadas
 
@@ -37,7 +37,7 @@ O processo sincroniza as seguintes tabelas:
 ### 1. Clone ou extraia o projeto
 
 ```bash
-cd /caminho/para/etl-manager
+cd /caminho/para/etl-manager-v2
 ```
 
 ### 2. Crie um ambiente virtual (recomendado)
@@ -129,7 +129,7 @@ $env:TARGET_DB_SSLMODE="require"
 ### Verificar instalação
 
 ```bash
-etl-manager --help
+etl-manager-v2 --help
 ```
 
 ---
@@ -142,12 +142,12 @@ Registra um novo processo de sincronização:
 
 ```bash
 # Sintaxe básica
-etl-manager add <argus_id> --interval <minutos>
+etl-manager-v2 add <argus_id> --interval <minutos>
 
 # Exemplos
-etl-manager add 110760000549 --interval 60
-etl-manager add 110760000088 --interval 30
-etl-manager add argus_110760000088 --interval 60
+etl-manager-v2 add 110760000549 --interval 60
+etl-manager-v2 add 110760000088 --interval 30
+etl-manager-v2 add argus_110760000088 --interval 60
 ```
 
 Parâmetros:
@@ -162,7 +162,7 @@ Parâmetros:
 #### 2. Listar todos os ETLs
 
 ```bash
-etl-manager ps
+etl-manager-v2 ps
 ```
 
 Saída exemplo:
@@ -180,17 +180,17 @@ ARGUS ID             STATUS               INTERVAL   LAST RUN       LAST STATUS
 O daemon executa em background e gerencia todos os ETLs registrados:
 
 ```bash
-etl-manager daemon start
+etl-manager-v2 daemon start
 ```
 
 Verificar status:
 ```bash
-etl-manager daemon status
+etl-manager-v2 daemon status
 ```
 
 Parar o daemon:
 ```bash
-etl-manager daemon stop
+etl-manager-v2 daemon stop
 ```
 
 ---
@@ -200,10 +200,10 @@ etl-manager daemon stop
 Executa um ETL imediatamente (sem esperar o próximo ciclo):
 
 ```bash
-etl-manager run <argus_id>
+etl-manager-v2 run <argus_id>
 
 # Exemplo
-etl-manager run 110760000549
+etl-manager-v2 run 110760000549
 ```
 
 ---
@@ -212,13 +212,13 @@ etl-manager run 110760000549
 
 ```bash
 # Últimas 30 linhas de um ETL específico
-etl-manager logs 110760000549
+etl-manager-v2 logs 110760000549
 
 # Últimas 100 linhas
-etl-manager logs 110760000549 --tail 100
+etl-manager-v2 logs 110760000549 --tail 100
 
 # Todos os ETLs
-etl-manager logs --all
+etl-manager-v2 logs --all
 ```
 
 ---
@@ -227,16 +227,16 @@ etl-manager logs --all
 
 ```bash
 # Pausar um ETL (não remove)
-etl-manager stop 110760000549
+etl-manager-v2 stop 110760000549
 
 # Reativar um ETL pausado
-etl-manager enable 110760000549
+etl-manager-v2 enable 110760000549
 
 # Forçar execução no próximo ciclo
-etl-manager restart 110760000549
+etl-manager-v2 restart 110760000549
 
 # Alterar intervalo
-etl-manager interval 110760000549 30
+etl-manager-v2 interval 110760000549 30
 ```
 
 ---
@@ -246,7 +246,7 @@ etl-manager interval 110760000549 30
 Mostra todos os detalhes de um ETL específico:
 
 ```bash
-etl-manager inspect 110760000549
+etl-manager-v2 inspect 110760000549
 ```
 
 ---
@@ -256,7 +256,7 @@ etl-manager inspect 110760000549
 Remove um ETL do registro:
 
 ```bash
-etl-manager rm 110760000549
+etl-manager-v2 rm 110760000549
 ```
 
 ---
@@ -271,18 +271,18 @@ pip install -e .
 nano .env
 
 # 3. Registrar ETLs
-etl-manager add 110760000088 --interval 60
-etl-manager add 110760000549 --interval 30
+etl-manager-v2 add 110760000088 --interval 60
+etl-manager-v2 add 110760000549 --interval 30
 
 # 4. Iniciar o daemon
-etl-manager daemon start
+etl-manager-v2 daemon start
 
 # 5. Monitorar
-etl-manager ps
-etl-manager logs 110760000088
+etl-manager-v2 ps
+etl-manager-v2 logs 110760000088
 
 # Verificar se o daemon está rodando
-etl-manager daemon status
+etl-manager-v2 daemon status
 ```
 
 ---
@@ -296,23 +296,23 @@ Antes de iniciar o daemon em produção, valide um ETL em foreground contra um b
 nano .env
 
 # 2. Registre ou atualize um ETL
-etl-manager add 110760000088 --interval 60 --force
+etl-manager-v2 add 110760000088 --interval 60 --force
 
 # 3. Execute uma sincronização manual
-etl-manager run 110760000088
+etl-manager-v2 run 110760000088
 
 # 4. Verifique logs e tabelas no schema configurado
-etl-manager logs 110760000088 --tail 100
+etl-manager-v2 logs 110760000088 --tail 100
 ```
 
-Confirme no Supabase que as tabelas foram criadas no schema `TARGET_DB_SCHEMA` e que os registros esperados foram inseridos antes de iniciar `etl-manager daemon start`.
+Confirme no Supabase que as tabelas foram criadas no schema `TARGET_DB_SCHEMA` e que os registros esperados foram inseridos antes de iniciar `etl-manager-v2 daemon start`.
 
 ---
 
 ## Estrutura de Arquivos
 
 ```
-etl-manager/
+etl-manager-v2/
 ├── etl_manager/           # Pacote principal
 │   ├── __init__.py
 │   ├── cli.py              # Interface de linha de comando
@@ -344,10 +344,10 @@ Erros como "Can't connect to MySQL server" ou falhas de conexão PostgreSQL indi
 
 ```bash
 # Verifique os logs
-etl-manager logs --all
+etl-manager-v2 logs --all
 
 # Verifique se há outro processo
-etl-manager daemon status
+etl-manager-v2 daemon status
 ```
 
 ### Verificar banco de origem MySQL

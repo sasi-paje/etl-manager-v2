@@ -48,8 +48,8 @@ class ETLRunner:
     def run(self) -> dict[str, str]:
         """Run all table syncs. Returns a dict of table -> 'ok' | error message."""
         results = {}
-        self.connect()
         try:
+            self.connect()
             source_cursor = self.source_conn.cursor()
             target_cursor = self.target_conn.cursor()
 

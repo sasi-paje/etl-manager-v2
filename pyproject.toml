@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "etl-manager"
+name = "etl-manager-v2"
 version = "1.0.0"
 description = "Docker-style ETL process manager for MySQL to Supabase PostgreSQL sync"
 requires-python = ">=3.11"
@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-etl-manager = "etl_manager.cli:main"
+etl-manager-v2 = "etl_manager.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

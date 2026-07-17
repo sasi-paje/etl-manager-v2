@@ -193,6 +193,7 @@ class ETLRunner:
         self.source_db_config = source_db_config
         self.target_db_config = target_db_config
         self.target_schema = target_db_config.get("schema", "public")
+        self.batch_size = int(target_db_config.get("batch_size", 1000))
         self.target_column_types: dict[str, dict[str, str]] = {}
         self.source_conn: Optional[pymysql.Connection] = None
         self.target_conn: Optional[Any] = None
@@ -201,10 +202,22 @@ class ETLRunner:
         import psycopg
 
         self.source_conn = pymysql.connect(**self.source_db_config)
-        pg_config = {key: value for key, value in self.target_db_config.items() if key != "schema" and value is not None}
+        pg_config = {
+            key: value
+            for key, value in self.target_db_config.items()
+            if key not in {"schema", "batch_size", "statement_timeout"} and value is not None
+        }
+        pg_config.setdefault("prepare_threshold", None)
         self.target_conn = psycopg.connect(**pg_config)
+        self._set_target_statement_timeout()
         self._ensure_target_schema_exists()
         self._ensure_target_tables_exist()
+
+    def _set_target_statement_timeout(self) -> None:
+        assert self.target_conn is not None
+        timeout_seconds = int(self.target_db_config.get("statement_timeout", 300))
+        with self.target_conn.cursor() as cursor:
+            cursor.execute("SELECT set_config('statement_timeout', %s, false)", (f"{timeout_seconds}s",))
 
     def _ensure_target_schema_exists(self) -> None:
         assert self.target_conn is not None
@@ -295,8 +308,8 @@ class ETLRunner:
 
     def run(self) -> dict[str, str]:
         results = {}
-        self.connect()
         try:
+            self.connect()
             assert self.source_conn is not None
             assert self.target_conn is not None
             source_cursor = self.source_conn.cursor()
@@ -305,9 +318,11 @@ class ETLRunner:
 
             for table in self.TABLES:
                 try:
+                    logger.info("[%s] Syncing table %s...", self.argus_id, table)
                     self._sync_table(source_cursor, target_cursor, source_db, TABLE_SPECS[table])
                     self.target_conn.commit()
                     results[table] = "ok"
+                    logger.info("[%s] Synced table %s.", self.argus_id, table)
                 except Exception as exc:
                     self.target_conn.rollback()
                     results[table] = str(exc)
@@ -320,7 +335,7 @@ class ETLRunner:
         if table_spec.strategy == "truncate_reload":
             self._sync_truncate_reload(src, tgt, source_db, table_spec)
         else:
-            self._sync_by_max_id(src, tgt, source_db, table_spec)
+            self._sync_upsert_by_id(src, tgt, source_db, table_spec)
 
     def _source_columns_sql(self, table_spec: TableSpec) -> str:
         return ", ".join(_q_mysql(column.name) for column in table_spec.columns)
@@ -328,22 +343,55 @@ class ETLRunner:
     def _target_columns_sql(self, table_spec: TableSpec) -> str:
         return ", ".join(_q_pg(column.name) for column in table_spec.columns)
 
-    def _sync_by_max_id(self, src, tgt, source_db: str, table_spec: TableSpec) -> None:
+    def _upsert_sql(self, table_spec: TableSpec) -> str:
         target_table = _pg_table_ref(self.target_schema, table_spec.name)
-        source_table = f"{_q_mysql(source_db)}.{_q_mysql(table_spec.name)}"
-        columns = self._source_columns_sql(table_spec)
         target_columns = self._target_columns_sql(table_spec)
         placeholders = ", ".join(["%s"] * len(table_spec.columns))
+        update_columns = [column for column in table_spec.columns if column.name != "id"]
+        update_sql = ", ".join(f"{_q_pg(column.name)} = EXCLUDED.{_q_pg(column.name)}" for column in update_columns)
+        return (
+            f"INSERT INTO {target_table} ({target_columns}) VALUES ({placeholders}) "
+            f"ON CONFLICT ({_q_pg('id')}) DO UPDATE SET {update_sql}"
+        )
 
-        tgt.execute(f"SELECT MAX({_q_pg('id')}) FROM {target_table}")
-        max_id = tgt.fetchone()[0] or 0
-        src.execute(f"SELECT {columns} FROM {source_table} WHERE {_q_mysql('id')} > %s", (max_id,))
-        rows = src.fetchall()
-        if rows:
+    def _target_max_id(self, tgt, table_spec: TableSpec) -> int:
+        target_table = _pg_table_ref(self.target_schema, table_spec.name)
+        tgt.execute(f"SELECT COALESCE(MAX({_q_pg('id')}), 0) FROM {target_table}")
+        row = tgt.fetchone()
+        return int(row[0] or 0) if row else 0
+
+    def _sync_upsert_by_id(self, src, tgt, source_db: str, table_spec: TableSpec) -> None:
+        source_table = f"{_q_mysql(source_db)}.{_q_mysql(table_spec.name)}"
+        columns = self._source_columns_sql(table_spec)
+        upsert_sql = self._upsert_sql(table_spec)
+        last_id = self._target_max_id(tgt, table_spec)
+        total_rows = 0
+        batches = 0
+        logger.info("[%s] %s: starting after target id %s.", self.argus_id, table_spec.name, last_id)
+
+        while True:
+            src.execute(
+                f"SELECT {columns} FROM {source_table} WHERE {_q_mysql('id')} > %s ORDER BY {_q_mysql('id')} LIMIT %s",
+                (last_id, self.batch_size),
+            )
+            rows = src.fetchall()
+            if not rows:
+                break
             tgt.executemany(
-                f"INSERT INTO {target_table} ({target_columns}) VALUES ({placeholders})",
+                upsert_sql,
                 [self._normalize_row(row, table_spec) for row in rows],
             )
+            last_id = rows[-1][0]
+            total_rows += len(rows)
+            batches += 1
+            if batches == 1 or batches % 10 == 0:
+                logger.info(
+                    "[%s] %s: processed %s rows through id %s.",
+                    self.argus_id,
+                    table_spec.name,
+                    total_rows,
+                    last_id,
+                )
 
     def _sync_truncate_reload(self, src, tgt, source_db: str, table_spec: TableSpec) -> None:
         target_table = _pg_table_ref(self.target_schema, table_spec.name)
@@ -360,6 +408,7 @@ class ETLRunner:
                 f"INSERT INTO {target_table} ({target_columns}) VALUES ({placeholders})",
                 [self._normalize_row(row, table_spec) for row in rows],
             )
+        logger.info("[%s] %s: reloaded %s rows.", self.argus_id, table_spec.name, len(rows))
 
     def _normalize_row(self, row, table_spec: TableSpec):
         return tuple(self._normalize_value(value, column, table_spec.name) for value, column in zip(row, table_spec.columns))

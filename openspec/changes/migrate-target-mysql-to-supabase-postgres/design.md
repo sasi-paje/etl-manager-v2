@@ -12,7 +12,7 @@ The requested target is Supabase PostgreSQL. The source remains Argus MySQL/Mari
 - Create or verify the required target tables in PostgreSQL before syncing.
 - Preserve the existing table list and sync strategies.
 - Convert current column lists and target SQL to PostgreSQL-safe identifiers and statements.
-- Keep the operator workflow simple: `etl-manager add`, daemon scheduling, foreground `run`, logs, and inspection remain usable.
+- Keep the operator workflow simple: `etl-manager-v2 add`, daemon scheduling, foreground `run`, logs, and inspection remain usable.
 - Document the new required environment variables.
 
 **Non-Goals:**
@@ -70,7 +70,7 @@ The requested target is Supabase PostgreSQL. The source remains Argus MySQL/Mari
 3. Implement target table preparation with PostgreSQL DDL for the supported tables.
 4. Update sync SQL generation for PostgreSQL target reads, inserts, truncates, commits, and rollbacks.
 5. Update `.env.example` and `README.md` with Supabase target variables.
-6. Validate with a foreground `etl-manager run <argus_id>` against a non-production Supabase database.
+6. Validate with a foreground `etl-manager-v2 run <argus_id>` against a non-production Supabase database.
 7. Run the daemon after foreground validation succeeds.
 
 Rollback is to stop the daemon, restore the prior MySQL-target code/configuration, and point ETLs back to the existing MySQL target. PostgreSQL target tables can remain in Supabase until manually removed.

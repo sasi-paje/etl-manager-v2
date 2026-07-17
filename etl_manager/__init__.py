@@ -1,2 +1,2 @@
-"""ETL Manager package."""
+"""ETL Manager V2 package."""
 

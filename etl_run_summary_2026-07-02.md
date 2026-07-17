@@ -3,8 +3,8 @@
 Comando base:
 
 ```bash
-TARGET_DB_SCHEMA=<schema> .venv/bin/etl-manager add <id> --interval 60 --force
-TARGET_DB_SCHEMA=<schema> .venv/bin/etl-manager run <id>
+TARGET_DB_SCHEMA=<schema> .venv/bin/etl-manager-v2 add <id> --interval 60 --force
+TARGET_DB_SCHEMA=<schema> .venv/bin/etl-manager-v2 run <id>
 ```
 
 ## Resultado consolidado

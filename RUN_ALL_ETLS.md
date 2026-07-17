@@ -3,7 +3,7 @@
 Execute a partir da raiz do projeto:
 
 ```bash
-cd /Users/jorgehbchaves/Dev/etl-manager
+cd /Users/jorgehbchaves/Dev/etl-manager-v2
 source .venv/bin/activate
 
 schemas=(
@@ -37,21 +37,20 @@ schemas=(
   webapp_110760001246
   webapp_110760001255
   webapp_110760001263
-  webapp_11760000596
 )
 
 for schema in "${schemas[@]}"; do
   id="${schema#webapp_}"
   echo "=== $schema / $id ==="
-  TARGET_DB_SCHEMA="$schema" etl-manager add "$id" --interval 60 --force
-  TARGET_DB_SCHEMA="$schema" etl-manager run "$id"
+  TARGET_DB_SCHEMA="$schema" etl-manager-v2 add "$id" --interval 60 --force
+  TARGET_DB_SCHEMA="$schema" etl-manager-v2 run "$id"
 done
 ```
 
 Versao sem ativar o ambiente virtual:
 
 ```bash
-cd /Users/jorgehbchaves/Dev/etl-manager
+cd /Users/jorgehbchaves/Dev/etl-manager-v2
 
 schemas=(
   webapp_110760000036
@@ -84,13 +83,12 @@ schemas=(
   webapp_110760001246
   webapp_110760001255
   webapp_110760001263
-  webapp_11760000596
 )
 
 for schema in "${schemas[@]}"; do
   id="${schema#webapp_}"
   echo "=== $schema / $id ==="
-  TARGET_DB_SCHEMA="$schema" .venv/bin/etl-manager add "$id" --interval 60 --force
-  TARGET_DB_SCHEMA="$schema" .venv/bin/etl-manager run "$id"
+  TARGET_DB_SCHEMA="$schema" .venv/bin/etl-manager-v2 add "$id" --interval 60 --force
+  TARGET_DB_SCHEMA="$schema" .venv/bin/etl-manager-v2 run "$id"
 done
 ```
