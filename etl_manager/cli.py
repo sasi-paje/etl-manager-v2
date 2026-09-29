@@ -137,7 +137,7 @@ def cmd_add(args) -> None:
     upsert_etl(etl)
     print(colored(f"{SYMBOL_OK} ETL '{argus_id}' added (interval: {args.interval}min).", GREEN))
     print(f"  Source DB : argus_{argus_id}  @ {source_db or '(SOURCE_DB_HOST env)'}")
-    print(f"  Target PG : {os.environ.get('TARGET_DB_SCHEMA', 'public') or 'public'} schema @ {target_db or '(TARGET_DB_HOST env)'}")
+    print(f"  Target PG : {os.environ.get('TARGET_DB_SCHEMA', '').strip() or f'webapp_{argus_id}'} schema @ {target_db or '(TARGET_DB_HOST env)'}")
 
 
 def cmd_ps(args) -> None:
